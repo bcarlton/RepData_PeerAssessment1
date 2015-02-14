@@ -1,0 +1,297 @@
+#Introduction
+Greetings!  This is one of many documents for the Peer Assessment 1 project for
+the Reproducible Research (repdata-011) course from Johns Hopkins and Coursera.
+In total, the GitHub repository will contain an R Markdown file, a regular Markdown file and an HTML file as well.
+
+The purpose of this assignment is to produce a document that answers a series of questions in accordance with reproducible research best practices.  This document will analyze and answer questions concerning data taken from a personal activity monitoring device.  To quote from the assignment directly: 
+
+>This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+The questions and corresponding analyses will be laid out in order, and, of course, all code will be displayed for full transparency. Each section will be introduced by quoting the instructions for the analysis, and, naturally, the corresponding analysis will follow.
+
+Before beginning answering the official questions, I will include a snapshot of my current session.
+
+```{r sys.info}
+sessionInfo()
+```
+
+
+#Part 1: Data Upload and Cleaning
+###Loading and preprocessing the data
+* Show any code that is needed to
+
+    + Load the data (i.e. read.csv())
+    
+    + Process/transform the data (if necessary) into a format suitable for your analysis
+    
+As with any analysis, data must be procured, uploaded into R and cleaned. In addition, any packages necessary for the entire analysis will also be loaded as well. The following code checks to see if I have the dataset, and, if I don't, downloads and unzips the file for use.  Then, I upload the file into a data frame within the R environment.  Finally, I convert the date variable to a true date type, and store the result in a new data frame, proc.data.
+
+```{r init, results='hide'}
+require(dplyr)
+require(ggplot2)
+require(knitr)
+setwd('~/R/repdata-011/peer_assessment_1/')
+pa1.zip <- '~/R/repdata-011/peer_assessment_1/repdata-data-activity.zip'
+fileURL <- 'https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip'
+if(!file.exists(pa1.zip)){
+  download.file(url=fileURL, destfile=pa1.zip, method="auto")
+}
+unzip(zipfile=pa1.zip, overwrite=TRUE)
+raw.data <- read.csv(file='~/R/repdata-011/peer_assessment_1/activity.csv',
+                 header=TRUE,
+                 na.strings="NA")
+
+proc.data <- raw.data
+
+#adjusting date from factor type to Date type
+proc.data$date <- as.Date(proc.data$date, format='%Y-%m-%d')
+```
+
+#Part 2: What is the mean total number of steps taken per day?
+
+It is important to note the following assignment parameter quoted from the instructions directly: *"for this part of the assignment, you can ignore the missing values in the dataset."*
+
+I separate the complete data from the rows with missing information into two appropriately named datasets, and then I aggregate the complete data in terms of the daily step total, mean and median (the mean and median to be used for later questions).
+
+```{r numsteps}
+complete.data <- proc.data[complete.cases(proc.data), ]
+na.data <- proc.data[is.na(proc.data), ]
+agg.data <- summarize(group_by(complete.data, date),
+                      daily.step.total=sum(steps),
+                      daily.step.mean=mean(steps),
+                      daily.step.median=median(steps)
+                      )
+```
+
+To answer the question "What is the mean total of steps taken per day", I select the two appropriate columns from the aggregated data. This table shows the daily step average across all intervals.
+
+```{r mean.steps}
+kable(as.data.frame(agg.data)[, c("date", "daily.step.mean")], format="html")
+```
+
+The overall daily mean is calculated from the totals.
+
+```{r daily.mean}
+daily.mean <- mean(agg.data$daily.step.total)
+options(scipen=999) #no sci. notation
+```
+
+Therefore, the daily step mean is approximately `r round(daily.mean)` steps.
+
+###Calculate the total number of steps taken per day.
+Using the same aggregated data set, I select the date and daily total columns.
+
+```{r total.steps}
+kable(select(as.data.frame(agg.data), date, daily.step.total), format="html")
+```
+
+###Make a histogram of the total number of steps taken each day.
+I use the previously computed aggregate data and the ggplot2 plotting system to generate the histogram.  First, however,  I calculate a bin width using Sturges' Rule.  Sturges' rule calculates that the number of bins k can be calculated from a sample of size n with the following equation: $k = 1 + log_2(n)$. From the number of bins, it is a simple matter to calculate bin width by dividing the data range by the number of bins and rounding.
+
+```{r steps.hist}
+#use Sturges' rule to calculate bin.width for histogram
+bin.width =round(diff(range(agg.data$daily.step.total))/(1+log2(length(agg.data$daily.step.total))))
+
+#color blind friendly histogram
+g <- ggplot(agg.data, aes(x=daily.step.total))
+steps.hist <- g + geom_histogram(binwidth=bin.width, aes(fill=..count..)) +
+  scale_fill_gradient("Count", low="#11AA99", high="#FFEE33") +
+  xlab("Daily Step Total") +
+  ylab("Frequency") +
+  ggtitle("Histogram of Daily Step Total")
+print(steps.hist)
+```
+
+###Calculate and report the mean and median of the total number of steps taken per day.
+
+Again, I select the appropriate columns from the previously aggregated data. This table is the mean and median values over all intervals during each day.
+
+```{r mean.and.median.steps}
+kable(select(as.data.frame(agg.data), date, daily.step.mean, daily.step.median), format="html")
+```
+
+The mean over all dates was calculated earlier and is `r round(daily.mean)` steps.  The median total over all dates is calculated as follows:
+
+```{r median.steps}
+daily.median <- median(agg.data$daily.step.total)
+```
+
+The overall daily step median is `r round(daily.median)` steps.
+
+#Part 3: What is the average daily activity pattern?
+
+###Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis).
+
+To generate this time-series plot, I aggregate by calculating the mean number of steps of each interval across all dates.  Note that I am still using the complete data only.
+
+```{r interval.plot}
+avg.by.interval.data <- summarize(group_by(complete.data, interval),
+                             avg.steps = mean(steps))
+z <- ggplot(avg.by.interval.data, aes(x=interval, y=avg.steps))
+ts.plot <- z + geom_line() + xlab("Interval") +
+  ylab("Average Number of Steps") +
+  ggtitle("Average Number of Steps Across Each Interval")
+print(ts.plot)
+```
+
+
+###Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+
+From the aggregated interval data, I used the max function to select to obtain the value.
+
+```{r interval.max.steps}
+avg.by.interval.max.steps <- max(avg.by.interval.data$avg.steps)
+max.avg.interval <- avg.by.interval.data[avg.by.interval.data$avg.steps ==
+                                        avg.by.interval.max.steps, "interval"]
+max.avg.interval <- as.integer(max.avg.interval)
+```
+
+Thus, the interval that contains the maximum daily average of steps is interval `r max.avg.interval`.
+
+
+#Part 4: Imputing missing values
+
+From the assignment instructions: *"Note that there are a number of days/intervals where there are missing values (coded as NA). The presence of missing days may introduce bias into some calculations or summaries of the data."*
+
+###Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs).
+
+Because I've separated the data with NAs already, I can very easily count the number of missing values by counting the number of rows.
+
+```{r na.total}
+na.row.total <- nrow(na.data)
+```
+
+There are `r na.row.total` missing values in the data set.
+
+
+###Devise a strategy for filling in all of the missing values in the dataset. Create a new dataset that is equal to the original dataset but with the missing data filled in.
+
+As there are certain dates missing interval data entirely, it is better to impute by using the mean for a certain interval. Therefore, I match the interval to its average using the previously calculated dataset in part 3. Afterward, I combine the newly imputed dataset with the complete set filtered in part 2 to make a final imputed dataset containing all values. This is in line with the assignment instruction: "The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc."
+
+```{r impute.strategy}
+imputed.data <- na.data
+for (i in 1:nrow(imputed.data)){
+  curr.interval <- imputed.data[i,"interval"]
+  rep.steps <- filter(avg.by.interval.data, interval==curr.interval)$avg.steps
+  imputed.data[i,"steps"] <- round(rep.steps)
+}
+imputed.data <- rbind(imputed.data, complete.data)
+```
+
+For verification, we will check the number of rows in the new set against the number of complete cases.
+
+```{r complete.verify}
+nrow(imputed.data) == length(complete.cases(imputed.data))
+```
+
+The TRUE value indicates every row is complete, so the update to the dataset is successful.
+
+###Make a histogram of the total number of steps taken each day.
+
+Now that the imputed data set is complete, I will construct a histogram in a similar fashion to the first one.  First, however, I will reaggregate the data.
+
+```{r new.aggregation}
+imputed.agg.data <- summarize(group_by(imputed.data, date),
+                              daily.step.total = sum(steps),
+                              daily.step.mean = mean(steps),
+                              daily.step.median = median(steps)
+                              )
+```
+
+Once aggregated, the histogram is easily developed. As before, the use of Sturges' rule to calculate bin width is applied.
+
+```{r imputed.histogram}
+imp.bin.width <- round(diff(range(imputed.agg.data$daily.step.total))/(1+log2(length(imputed.agg.data$daily.step.total))))
+
+h <- ggplot(imputed.agg.data, aes(x=daily.step.total))
+imp.steps.hist <- h +
+  geom_histogram(binwidth=imp.bin.width, aes(fill=..count..)) +
+  scale_fill_gradient("Count", low="#11AA99", high="#FFEE33") +
+  xlab("Daily Step Total") +
+  ylab("Frequency") +
+  ggtitle("Histogram of Imputed Data Daily Step Total")
+
+print(imp.steps.hist)
+```
+
+For comparison, consider this new histogram against the previously developed one without the NA values filled. By imputing, the histogram becomes more distinctly normal shaped and the central peak is much sharper than before.
+
+```{r}
+print(steps.hist)
+```
+
+###Calculate and report the mean and median total number of steps taken per day.
+
+The daily mean and median over all intervals was calculated in the imputed.agg.data dataset.
+
+```{r imp.daily.mean.median.table}
+kable(select(imputed.agg.data, date, daily.step.mean, daily.step.median),
+      format="html")
+```
+
+To get the mean and median over all dates and intervals, use the daily.step.totals.
+
+```{r imputed.daily.mean.and.median}
+imp.daily.mean <- mean(imputed.agg.data$daily.step.total)
+imp.daily.median <- median(imputed.agg.data$daily.step.total)
+```
+
+After imputation, the overall daily mean is approximately `r round(imp.daily.mean)` steps and the median is `r imp.daily.median` steps.
+
+###Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+To answer these questions, I'll examine the raw and percent differences before and after imputation.
+
+```{r impact}
+raw.diff.mean <- daily.mean - imp.daily.mean
+raw.diff.median <- daily.median - imp.daily.median
+per.diff.mean <- (raw.diff.mean/daily.mean)*100
+per.diff.median <- (raw.diff.median/daily.median)*100
+```
+
+As to how the mean values are affected, the difference between the two values is `r raw.diff.mean` and the percent difference between them is `r per.diff.mean`.  With a percent difference value of less than a percent, it is readily apparent that the imputation does not affect the mean value.
+
+Examining the median, the different is `r raw.diff.median` and the percent difference is `r per.diff.median`. Again, like with the mean values, my imputation strategy does not alter the median values.
+
+
+#Part 5:  Are there differences in activity patterns between weekdays and weekends?
+
+As per the assignment instructions: "Use the dataset with the filled-in missing values for this part."
+
+###Create a new factor variable in the dataset with two levels – “weekday” and “weekend” - indicating whether a given date is a weekday or weekend.
+
+I will take advantage of the dplyr package's mutate function to add the new factor called "date.class".
+
+```{r add.factor}
+imputed.data <- mutate(imputed.data,
+                       day.of.week = weekdays(date),
+                       date.class = ifelse(day.of.week == "Saturday"| day.of.week == "Sunday", "Weekend", "Weekday")
+                       )
+imputed.data$date.class <- as.factor(imputed.data$date.class)
+head(imputed.data, n=5)
+```
+
+###Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis).
+
+To accomplish this objective, I aggregate over the date class (weekend or weekday) and then over each interval. Like the other plots, I use ggplot to construct the time series.
+
+```{r date.class.plots}
+avg.by.date.class <- summarize(group_by(imputed.data, date.class, interval),
+                                  avg.steps = mean(steps)
+                               )
+
+#time.series.plot
+t <- ggplot(avg.by.date.class, aes(x=interval, y=avg.steps))
+ts.plot.by.date.class <- t + geom_line() +
+  facet_grid(date.class ~ .) +
+  ylab("Average Number of Steps") +
+  xlab("Interval Number") +
+  ggtitle("Average Steps Time Series")
+
+print(ts.plot.by.date.class)
+```
+
+The time series shows that peak activity occurs after the 750th but before the 1000th interval, which is inline with the interval with max steps calculated earlier, which was interval `r max.avg.interval`.  Both time series show a drop off afterward, but the activity during the weekends is higher.
+
+#Conclusion
+This is the end of the document for Peer Assessment 1. Thank you for reading!
