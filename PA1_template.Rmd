@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 #Introduction
 Greetings!  This is one of many documents for the Peer Assessment 1 project for
 the Reproducible Research (repdata-011) course from Johns Hopkins and Coursera.
@@ -295,3 +296,30 @@ The time series shows that peak activity occurs after the 750th but before the 1
 
 #Conclusion
 This is the end of the document for Peer Assessment 1. Thank you for reading!
+=======
+---
+title: "Reproducible Research: Peer Assessment 1"
+output: 
+  html_document:
+    keep_md: true
+---
+
+
+## Loading and preprocessing the data
+
+
+
+## What is mean total number of steps taken per day?
+
+
+
+## What is the average daily activity pattern?
+
+
+
+## Imputing missing values
+
+
+
+## Are there differences in activity patterns between weekdays and weekends?
+>>>>>>> 80edf39c3bb508fee88e3394542f967dd3fd3270
